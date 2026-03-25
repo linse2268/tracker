@@ -138,8 +138,7 @@
     laps = parseInt(localStorage.getItem('laps')) || 0;
     elapsed = parseInt(localStorage.getItem('elapsed')) || 0;
     running = localStorage.getItem('running') === 'true';
-
-    if (laps > 0) calculatePace(); // Pace einmalig setzen
+    currentPace = localStorage.getItem('pace') || "--:-- /km"; // ✅ Pace wiederherstellen
 
     if (running) {
       startTime = Date.now() - elapsed;
@@ -173,21 +172,20 @@
     const dist = laps * lapDistance;
     if (dist === 0) {
       currentPace = "--:-- /km";
-      return;
+    } else {
+      const paceMinPerKm = (elapsed / 60000) / dist;
+      const paceMin = Math.floor(paceMinPerKm);
+      const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
+      currentPace =
+        paceMin + ":" + String(paceSec).padStart(2, '0') + " /km";
     }
-
-    const paceMinPerKm = (elapsed / 60000) / dist;
-    const paceMin = Math.floor(paceMinPerKm);
-    const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
-
-    currentPace =
-      paceMin + ":" + String(paceSec).padStart(2, '0') + " /km";
+    saveToLocalStorage(); // ✅ Pace sofort speichern
   }
 
   // Timer nur für die Zeit
   function updateTimer() {
     elapsed = Date.now() - startTime;
-    updateDisplay(); // Pace nicht bei jedem Intervall aktualisieren
+    updateDisplay(); // Pace nicht hier aktualisieren
   }
 
   function startStop() {
@@ -205,7 +203,7 @@
   function lap() {
     if (!running) return;
     laps++;
-    calculatePace(); // Pace nur bei neuen Runden aktualisieren
+    calculatePace(); // Pace nur bei neuen Runden berechnen
     updateDisplay();
   }
 
@@ -251,11 +249,13 @@
     localStorage.setItem('laps', laps);
     localStorage.setItem('elapsed', elapsed);
     localStorage.setItem('running', running);
+    localStorage.setItem('pace', currentPace); // ✅ Pace speichern
   }
 </script>
 
 </body>
 </html>
+
 
 
 <!--
