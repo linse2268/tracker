@@ -14,6 +14,268 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
+      width: 100vw;
+      font-size: 2em;
+      overflow: hidden;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-weight: 900;
+    }
+
+    .display {
+      font-size: 2.5em;
+      margin: 8px 0;
+      text-align: center;
+    }
+
+    .pace {
+      font-size: 2.7em;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+
+    .buttons {
+      margin-top: 25px;
+      width: 100%;
+      max-width: 80vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+
+    button {
+      font-size: 1em;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 30px;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    .rundendiv {
+      width: 100%;
+    }
+
+    #rundenButton {
+      background-color: green;
+      width: 100%;
+      font-size: 1.8em;
+      font-weight: 900;
+      padding: 1em 2em;
+    }
+
+    .dangerous {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+    }
+
+    .dangerous button {
+      flex: 1;
+      background-color: rgb(131, 2, 2);
+    }
+
+    #confirm {
+      background-color: rgb(31, 31, 31);
+      width: 30%;
+      color: rgb(78, 78, 78);
+      transition: 0.2s;
+    }
+
+    #confirm.active {
+      background-color: rgb(200, 200, 200);
+      color: black;
+    }
+
+  </style>
+</head>
+<body>
+
+  <h1>Runden Tracker</h1>
+
+  <div class="display" id="time">00:00</div>
+  <div class="display" id="laps">Runden: 0</div>
+  <div class="display" id="distance">0.00 km</div>
+  <div class="pace" id="pace">--:-- /km</div>
+
+  <div class="buttons">
+    <div class="rundendiv">
+      <button onclick="lap()" id="rundenButton">Runde +1</button>
+    </div>
+
+    <div class="dangerous">
+      <button onclick="requestAction('reset')">Reset</button>
+      <button onclick="requestAction('toggle')">Start / Stop</button>
+    </div>
+
+    <button id="confirm" onclick="confirmAction()">bestätige</button>
+  </div>
+
+<script>
+  let startTime = 0;
+  let elapsed = 0;
+  let running = false;
+  let timer = null;
+
+  let laps = 0;
+  const lapDistance = 0.4;
+
+  let currentPace = "--:-- /km";
+
+  // 🔐 Confirm-System
+  let pendingAction = null;
+  let confirmTimeout = null;
+
+  // 🔄 Beim Laden Daten aus localStorage wiederherstellen
+  window.onload = () => {
+    laps = parseInt(localStorage.getItem('laps')) || 0;
+    elapsed = parseInt(localStorage.getItem('elapsed')) || 0;
+    running = localStorage.getItem('running') === 'true';
+
+    if (laps > 0) calculatePace(); // Pace einmalig setzen
+
+    if (running) {
+      startTime = Date.now() - elapsed;
+      timer = setInterval(updateTimer, 200);
+    }
+
+    updateDisplay();
+  };
+
+  function formatTime(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const sec = String(totalSec % 60).padStart(2, '0');
+    return min + ":" + sec;
+  }
+
+  function updateDisplay() {
+    document.getElementById("time").textContent = formatTime(elapsed);
+    document.getElementById("laps").textContent = "Runden: " + laps;
+
+    const dist = laps * lapDistance;
+    document.getElementById("distance").textContent =
+      dist.toFixed(2) + " km";
+
+    document.getElementById("pace").textContent = currentPace;
+
+    saveToLocalStorage();
+  }
+
+  function calculatePace() {
+    const dist = laps * lapDistance;
+    if (dist === 0) {
+      currentPace = "--:-- /km";
+      return;
+    }
+
+    const paceMinPerKm = (elapsed / 60000) / dist;
+    const paceMin = Math.floor(paceMinPerKm);
+    const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
+
+    currentPace =
+      paceMin + ":" + String(paceSec).padStart(2, '0') + " /km";
+  }
+
+  // Timer nur für die Zeit
+  function updateTimer() {
+    elapsed = Date.now() - startTime;
+    updateDisplay(); // Pace nicht bei jedem Intervall aktualisieren
+  }
+
+  function startStop() {
+    if (!running) {
+      running = true;
+      startTime = Date.now() - elapsed;
+      timer = setInterval(updateTimer, 200);
+    } else {
+      running = false;
+      clearInterval(timer);
+    }
+    saveToLocalStorage();
+  }
+
+  function lap() {
+    if (!running) return;
+    laps++;
+    calculatePace(); // Pace nur bei neuen Runden aktualisieren
+    updateDisplay();
+  }
+
+  function reset() {
+    running = false;
+    clearInterval(timer);
+    elapsed = 0;
+    laps = 0;
+    currentPace = "--:-- /km";
+    updateDisplay();
+  }
+
+  // 🔥 Confirm-Button Logik
+  function requestAction(action) {
+    pendingAction = action;
+
+    const btn = document.getElementById("confirm");
+    btn.classList.add("active");
+
+    clearTimeout(confirmTimeout);
+    confirmTimeout = setTimeout(cancelConfirm, 2000);
+  }
+
+  function confirmAction() {
+    if (!pendingAction) return;
+
+    if (pendingAction === "reset") {
+      reset();
+    } else if (pendingAction === "toggle") {
+      startStop();
+    }
+
+    cancelConfirm();
+  }
+
+  function cancelConfirm() {
+    pendingAction = null;
+    document.getElementById("confirm").classList.remove("active");
+  }
+
+  // 💾 LocalStorage speichern
+  function saveToLocalStorage() {
+    localStorage.setItem('laps', laps);
+    localStorage.setItem('elapsed', elapsed);
+    localStorage.setItem('running', running);
+  }
+</script>
+
+</body>
+</html>
+
+
+<!--
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Runden Tracker</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
       font-size: 2em;
     }
 
@@ -133,3 +395,4 @@
 
 </body>
 </html>
+-->
