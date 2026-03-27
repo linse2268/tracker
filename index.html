@@ -93,6 +93,9 @@
       background-color: rgb(200, 200, 200);
       color: black;
     }
+    #lapTime{
+      color: gray;
+    }
 
   </style>
 </head>
@@ -101,6 +104,7 @@
   <h1>Runden Tracker</h1>
 
   <div class="display" id="time">00:00</div>
+  <div class="display" id="lapTime">00:00</div>
   <div class="display" id="laps">Runden: 0</div>
   <div class="display" id="distance">0.00 km</div>
   <div class="pace" id="pace">--:-- /km</div>
@@ -133,15 +137,21 @@
   let pendingAction = null;
   let confirmTimeout = null;
 
+  // 🕒 Lap Time Tracking
+  let lapStartTime = 0;
+  let lapElapsed = 0;
+
   // 🔄 Beim Laden Daten aus localStorage wiederherstellen
   window.onload = () => {
     laps = parseInt(localStorage.getItem('laps')) || 0;
     elapsed = parseInt(localStorage.getItem('elapsed')) || 0;
+    lapElapsed = parseInt(localStorage.getItem('lapElapsed')) || 0;
     running = localStorage.getItem('running') === 'true';
-    currentPace = localStorage.getItem('pace') || "--:-- /km"; // ✅ Pace wiederherstellen
+    currentPace = localStorage.getItem('pace') || "--:-- /km";
 
     if (running) {
       startTime = Date.now() - elapsed;
+      lapStartTime = Date.now() - lapElapsed;
       timer = setInterval(updateTimer, 200);
     }
 
@@ -164,6 +174,16 @@
       dist.toFixed(2) + " km";
 
     document.getElementById("pace").textContent = currentPace;
+    document.getElementById("lapTime").textContent = formatTime(lapElapsed);
+    // 🔹 Pace color based on value
+    if (currentPace !== "--:-- /km") {
+        const [min, sec] = currentPace.split(" ")[0].split(":").map(Number);
+        const paceInSec = min * 60 + sec;
+        const thresholdSec = 4 * 60 + 48; // 4:48 in seconds
+        document.getElementById("pace").style.color = paceInSec <= thresholdSec ? "limegreen" : "red";
+    } else {
+        document.getElementById("pace").style.color = "white";
+    }
 
     saveToLocalStorage();
   }
@@ -179,19 +199,21 @@
       currentPace =
         paceMin + ":" + String(paceSec).padStart(2, '0') + " /km";
     }
-    saveToLocalStorage(); // ✅ Pace sofort speichern
+    saveToLocalStorage();
   }
 
   // Timer nur für die Zeit
   function updateTimer() {
     elapsed = Date.now() - startTime;
-    updateDisplay(); // Pace nicht hier aktualisieren
+    lapElapsed = Date.now() - lapStartTime; // 🔹 Update lap timer
+    updateDisplay(); // Pace bleibt unverändert
   }
 
   function startStop() {
     if (!running) {
       running = true;
       startTime = Date.now() - elapsed;
+      lapStartTime = Date.now() - lapElapsed;
       timer = setInterval(updateTimer, 200);
     } else {
       running = false;
@@ -203,7 +225,12 @@
   function lap() {
     if (!running) return;
     laps++;
-    calculatePace(); // Pace nur bei neuen Runden berechnen
+    calculatePace();
+
+    // 🕒 Update lap time and reset lap timer
+    lapElapsed = Date.now() - lapStartTime;
+    lapStartTime = Date.now();
+
     updateDisplay();
   }
 
@@ -212,6 +239,7 @@
     clearInterval(timer);
     elapsed = 0;
     laps = 0;
+    lapElapsed = 0;
     currentPace = "--:-- /km";
     updateDisplay();
   }
@@ -248,151 +276,11 @@
   function saveToLocalStorage() {
     localStorage.setItem('laps', laps);
     localStorage.setItem('elapsed', elapsed);
+    localStorage.setItem('lapElapsed', lapElapsed); // 🔹 Save lap time
     localStorage.setItem('running', running);
-    localStorage.setItem('pace', currentPace); // ✅ Pace speichern
+    localStorage.setItem('pace', currentPace);
   }
 </script>
 
 </body>
 </html>
-
-
-
-<!--
-
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Runden Tracker</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, sans-serif;
-      background: #111;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      font-size: 2em;
-    }
-
-    h1 {
-      margin-bottom: 20px;
-    }
-
-    .display {
-      font-size: 2em;
-      margin: 8px 0;
-    }
-
-    .pace {
-      font-size: 2.5em;
-      font-weight: bold;
-      margin-top: 15px;
-    }
-
-    .buttons {
-      margin-top: 25px;
-    }
-
-    button {
-      font-size: 1.2em;
-      padding: 12px 18px;
-      margin: 5px;
-      border: none;
-      border-radius: 8px;
-      background: #333;
-      color: white;
-    }
-
-    button:active {
-      background: #555;
-    }
-  </style>
-</head>
-<body>
-
-  <h1>🏃 Runden Tracker</h1>
-
-  <div class="display" id="time">00:00</div>
-  <div class="display" id="laps">Runden: 0</div>
-  <div class="display" id="distance">0.00 km</div>
-  <div class="pace" id="pace">--:-- /km</div>
-
-  <div class="buttons">
-    <button onclick="startStop()">Start / Stop</button>
-    <button onclick="lap()">Runde +1</button>
-    <button onclick="reset()">Reset</button>
-  </div>
-
-  <script>
-    let startTime = 0;
-    let elapsed = 0;
-    let running = false;
-    let timer = null;
-
-    let laps = 0;
-    const lapDistance = 0.4; // km
-
-    function formatTime(ms) {
-      const totalSec = Math.floor(ms / 1000);
-      const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
-      const sec = String(totalSec % 60).padStart(2, '0');
-      return min + ":" + sec;
-    }
-
-    function updateDisplay() {
-      document.getElementById("time").textContent = formatTime(elapsed);
-      document.getElementById("laps").textContent = "Runden: " + laps;
-
-      const dist = laps * lapDistance;
-      document.getElementById("distance").textContent =
-        dist.toFixed(2) + " km";
-
-      if (dist > 0) {
-        const paceMinPerKm = (elapsed / 60000) / dist;
-        const paceMin = Math.floor(paceMinPerKm);
-        const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
-
-        document.getElementById("pace").textContent =
-          paceMin + ":" + String(paceSec).padStart(2, '0') + " /km";
-      }
-    }
-
-    function startStop() {
-      if (!running) {
-        running = true;
-        startTime = Date.now() - elapsed;
-
-        timer = setInterval(() => {
-          elapsed = Date.now() - startTime;
-          updateDisplay();
-        }, 200);
-
-      } else {
-        running = false;
-        clearInterval(timer);
-      }
-    }
-
-    function lap() {
-      if (!running) return;
-      laps++;
-      updateDisplay();
-    }
-
-    function reset() {
-      running = false;
-      clearInterval(timer);
-      elapsed = 0;
-      laps = 0;
-      updateDisplay();
-    }
-  </script>
-
-</body>
-</html>
--->
